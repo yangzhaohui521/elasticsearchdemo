@@ -27,7 +27,7 @@ public class ESconfig {
      * 端口
      */
     @Value("${elasticsearch.port}")
-    private String port;
+    private Integer port;
     /**
      * 集群名称
      */
@@ -45,17 +45,11 @@ public class ESconfig {
         LOGGER.info("初始化开始。。。。。");
         RestHighLevelClient transportClient = null;
         try {
-//            // 配置信息
-            transportClient = new RestHighLevelClient(
-                    RestClient.builder(
-                            new HttpHost("localhost", 9200, "http"),
-                            new HttpHost("localhost", 9201, "http")));
-
-
+           // 配置信息
+            transportClient = new RestHighLevelClient(RestClient.builder(new HttpHost(hostName, port, "http")));
         } catch (Exception e) {
             LOGGER.error("elasticsearch TransportClient create error!!!", e);
         }
-
         return transportClient;
     }
 

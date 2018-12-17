@@ -10,21 +10,20 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.Date;
@@ -183,22 +182,23 @@ public class ESController {
 
 
 
-    @GetMapping("person/search")
-    public ResponseEntity search(){
+    @RequestMapping("person/search")
+    @ResponseBody
+    public SearchResponse search(){
         try {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices("megacorp");
 //            MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("first_name","Jane");
 //            matchQueryBuilder.fuzziness(Fuzziness.AUTO);
 
-            MatchPhraseQueryBuilder matchPhraseQueryBuilder = new MatchPhraseQueryBuilder("about","rock climbing");
+            //MatchPhraseQueryBuilder matchPhraseQueryBuilder = new MatchPhraseQueryBuilder("about","rock climbing");
 
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 //            searchSourceBuilder.from(0);
 //            searchSourceBuilder.size(3);
 //            searchSourceBuilder.sort(new FieldSortBuilder("age").order(SortOrder.ASC));
             //searchSourceBuilder.query(matchQueryBuilder);
-            searchSourceBuilder.query(matchPhraseQueryBuilder);
+            //searchSourceBuilder.query(matchPhraseQueryBuilder);
 
 
 
@@ -207,17 +207,31 @@ public class ESController {
 //            String[] excludeFields = new String[] {"_type"};
 //            searchSourceBuilder.fetchSource(includeFields, excludeFields);
 
+            // 高亮
+//            HighlightBuilder highlightBuilder = new HighlightBuilder();
+//            HighlightBuilder.Field highlightTitle = new HighlightBuilder.Field("about");
+//            //HighlightBuilder.Field highlightUser = new HighlightBuilder.Field("last_name");
+////            highlightTitle.highlighterType("unified");
+//            highlightBuilder.field(highlightTitle);
+//           // highlightBuilder.field(highlightUser);
+//            searchSourceBuilder.highlighter(highlightBuilder);
 
-            HighlightBuilder highlightBuilder = new HighlightBuilder();
-            HighlightBuilder.Field highlightTitle = new HighlightBuilder.Field("about");
-            //HighlightBuilder.Field highlightUser = new HighlightBuilder.Field("last_name");
-//            highlightTitle.highlighterType("unified");
-            highlightBuilder.field(highlightTitle);
-           // highlightBuilder.field(highlightUser);
-            searchSourceBuilder.highlighter(highlightBuilder);
+
+            // 聚合
+//            TermsAggregationBuilder aggregation = AggregationBuilders.terms("by_company")
+//                    .field("interests.keyword");
+//            aggregation.subAggregation(AggregationBuilders.avg("average_age")
+//                    .field("age"));
+//            searchSourceBuilder.aggregation(aggregation);
 
 
+            // 建议
+//            SuggestionBuilder termSuggestionBuilder = SuggestBuilders.termSuggestion("user").text("kmichy");
+//            SuggestBuilder suggestBuilder = new SuggestBuilder();
+//            suggestBuilder.addSuggestion("suggest_user", termSuggestionBuilder);
+//            searchSourceBuilder.suggest(suggestBuilder);
 
+//            searchSourceBuilder.query(termSuggestionBuilder);
             searchRequest.source(searchSourceBuilder);
 
             System.out.println(searchRequest.source().toString());
@@ -232,17 +246,59 @@ public class ESController {
 //            }
 
             System.out.println("");
-            return new ResponseEntity(search,HttpStatus.OK);
+            return search;
 
         }catch (Exception e){
 
             e.printStackTrace();
 
         }
-        return new ResponseEntity("",HttpStatus.OK);
+        return null;
     }
 
 
+
+
+    @RequestMapping("/searchScroll")
+    @ResponseBody
+    public Map<String,Object> searchScroll(@RequestParam("scrollId") String scrollId){
+        SearchResponse searchResponse = null;
+        Map<String,Object> map = new HashMap<>();
+        SearchHits hits=null;
+        try {
+            if (StringUtils.isEmpty(scrollId)){
+                SearchRequest searchRequest = new SearchRequest("megacorp");
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+//            MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("first_name", "Jane");
+//            searchSourceBuilder.query(matchQueryBuilder);
+                searchSourceBuilder.size(2);
+                searchRequest.source(searchSourceBuilder);
+                searchRequest.scroll(TimeValue.timeValueMinutes(1L));
+                searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
+                scrollId = searchResponse.getScrollId();
+                hits = searchResponse.getHits();
+            }else {
+                SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId);
+                scrollRequest.scroll(TimeValue.timeValueSeconds(30));
+                searchResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
+                scrollId = searchResponse.getScrollId();
+                hits = searchResponse.getHits();
+            }
+            map.put("hits",hits);
+            map.put("scrollId",scrollId);
+            System.out.println(scrollId);
+            return map;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+
+    public static void main(String[] args) {
+        TimeValue timeValue = TimeValue.timeValueMinutes(1L);
+
+    }
 
 
 }
